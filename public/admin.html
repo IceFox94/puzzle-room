@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Puzzle Room · Админ</title>
+<style>
+  body { font-family: system-ui, sans-serif; background:#1e1e2e; color:#cdd6f4;
+         padding:20px; }
+  h1 { margin-top:0; }
+  .crumbs { color:#a6adc8; font-size:14px; margin-bottom:16px; }
+  .crumbs a { color:#89b4fa; cursor:pointer; text-decoration:none; }
+
+  .games-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr));
+                gap:16px; }
+  .game-card { background:#313244; border-radius:12px; padding:20px;
+               cursor:pointer; text-align:center; font-size:18px; font-weight:bold; }
+  .game-card:hover { outline:1px solid #89b4fa; }
+  .game-card .count { display:block; font-size:13px; font-weight:normal;
+                      color:#a6adc8; margin-top:6px; }
+
+  .rooms-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(260px,1fr));
+                gap:16px; }
+  .room-card { background:#313244; border-radius:12px; padding:16px; cursor:pointer; }
+  .room-card:hover { outline:1px solid #89b4fa; }
+  .room-card h3 { margin:0 0 8px; font-size:16px; }
+  .room-card .solved { color:#a6e3a1; }
+  .room-card .open { color:#f9e2af; }
+
+  .modal { position:fixed; inset:0; background:rgba(0,0,0,.7);
+           display:none; align-items:center; justify-content:center; z-index:10; }
+  .modal.open { display:flex; }
+  .modal-box { background:#1e1e2e; padding:24px; border-radius:12px;
+               max-width:90vw; max-height:90vh; overflow:auto; }
+  .modal-box h2 { margin:0 0 8px; }
+  .modal-box .sub { color:#a6adc8; margin-bottom:16px; font-size:14px; }
+
+  .players-list { display:flex; flex-direction:column; gap:6px; margin-bottom:16px; }
+  .player-row { background:#313244; border-radius:8px; padding:8px 12px;
+                cursor:pointer; display:flex; justify-content:space-between; }
+  .player-row:hover { outline:1px solid #89b4fa; }
+  .player-row .win { color:#a6e3a1; font-size:12px; }
+
+  #viewBoard { display:flex; justify-content:center; align-items:flex-end;
+               padding:20px; background:#313244; border-radius:12px; min-height:280px; }
+  .rod { width:150px; height:240px; display:flex; flex-direction:column-reverse;
+         align-items:center; justify-content:flex-start; position:relative;
+         padding-bottom:10px; }
+  .rod::before { content:""; position:absolute; bottom:10px; width:8px;
+                 height:210px; background:#6c7086; border-radius:4px; }
+  .disk { height:22px; border-radius:6px; position:relative; z-index:1; margin-bottom:2px; }
+  .lo-grid { display:grid; gap:6px; }
+  .lo-cell { width:40px; height:40px; border-radius:6px; background:#45475a; }
+  .lo-cell.on { background:#f9e2af; }
+
+  button { margin-top:16px; padding:10px 20px; background:#89b4fa; color:#1e1e2e;
+           border:none; border-radius:8px; font-weight:bold; cursor:pointer; }
+</style>
+</head>
+<body>
+<h1>Puzzle Room · Админ</h1>
+<div class="crumbs" id="crumbs"></div>
+<div id="content"></div>
+
+<div class="modal" id="roomModal">
+  <div class="modal-box">
+    <h2 id="modalTitle">Комната</h2>
+    <div class="sub" id="modalSub"></div>
+    <div class="players-list" id="playersList"></div>
+    <div id="viewBoard"></div>
+    <button id="modalClose">Закрыть</button>
+  </div>
+</div>
+
+<div class="modal" id="playerModal">
+  <div class="modal-box">
+    <h2 id="playerTitle">Игрок</h2>
+    <div class="sub" id="playerSub"></div>
+    <button id="playerClose">Закрыть</button>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const socket = io();
+const COLORS = ['#f38ba8','#fab387','#f9e2af','#a6e3a1','#89b4fa','#cba6f7'];
+
+let data = { games: [], rooms: {} };  // ответ admin:update
+let currentGame = null;               // выбранная игра (id)
+let currentRoom = null;               // выбранная комната (snapshot)
+
+socket.emit('admin:subscribe');
+
+socket.on('admin:update', (d) => {
+  data = d;
+  render();
+});
+
+// ---------------------------------------------------------------- рендер
+function render() {
+  if (!currentGame) renderGames();
+  else renderRooms();
+  renderCrumbs();
+}
+
+function renderCrumbs() {
+  const crumbs = document.getElementById('crumbs');
+  if (!currentGame) {
+    crumbs.innerHTML = '';
+    return;
+  }
+  const game = data.games.find(g => g.id === currentGame);
+  crumbs.innerHTML =
+    `<a id="backGames">Все игры</a> · ${game ? game.title : currentGame}`;
+  document.getElementById('backGames').addEventListener('click', () => {
+    currentGame = null;
+    currentRoom = null;
+    render();
+  });
+}
+
+function renderGames() {
+  const content = document.getElementById('content');
+  content.innerHTML = '<div class="games-grid" id="gamesGrid"></div>';
+  const grid = document.getElementById('gamesGrid');
+  for (const game of data.games) {
+    const rooms = data.rooms[game.id] || [];
+    const active = rooms.filter(r => r.players.length > 0).length;
+    const card = document.createElement('div');
+    card.className = 'game-card';
+    card.innerHTML = `${game.title}<span class="count">Комнат: ${rooms.length} · Активных: ${active}</span>`;
+    card.addEventListener('click', () => {
+      currentGame = game.id;
+      currentRoom = null;
+      render();
+    });
+    grid.appendChild(card);
+  }
+}
+
+function renderRooms() {
+  const content = document.getElementById('content');
+  const rooms = data.rooms[currentGame] || [];
+  content.innerHTML = '<div class="rooms-grid" id="roomsGrid"></div>';
+  const grid = document.getElementById('roomsGrid');
+  if (!rooms.length) {
+    content.innerHTML = '<div style="color:#a6adc8;">Пока нет комнат в этой игре.</div>';
+    return;
+  }
+  for (const room of rooms) {
+    const card = document.createElement('div');
+    card.className = 'room-card';
+    const status = room.solved
+      ? '<span class="solved">Решено</span>'
+      : '<span class="open">В процессе</span>';
+    card.innerHTML = `
+      <h3>${escapeHtml(room.roomId)}</h3>
+      <div>${status}</div>
+      <div style="font-size:13px;color:#a6adc8;margin-top:6px;">
+        Игроков: ${room.players.length}
+        ${room.players.length ? '· ' + room.players.map(p => escapeHtml(p.name)).join(', ') : ''}
+      </div>
+    `;
+    card.addEventListener('click', () => openRoom(room.roomId));
+    grid.appendChild(card);
+  }
+}
+
+function openRoom(roomId) {
+  const room = (data.rooms[currentGame] || []).find(r => r.roomId === roomId);
+  if (!room) return;
+  currentRoom = room;
+
+  document.getElementById('modalTitle').textContent =
+    `Комната: ${room.roomId}`;
+  document.getElementById('modalSub').textContent =
+    `${room.gameTitle} · ${room.solved ? 'Решено' : 'В процессе'} · ` +
+    `Ходов в комнате: ${room.state.moves ?? 0}`;
+
+  const list = document.getElementById('playersList');
+  list.innerHTML = '';
+  if (!room.players.length) {
+    list.innerHTML = '<div style="color:#a6adc8;font-size:13px;">Пока нет игроков.</div>';
+  }
+  for (const p of room.players) {
+    const row = document.createElement('div');
+    row.className = 'player-row';
+    const win = p.firstWinAt
+      ? `<span class="win">первая победа: ${fmtTime(p.firstWinAt)}</span>`
+      : '';
+    row.innerHTML = `<span>${escapeHtml(p.name)}</span>${win}`;
+    row.addEventListener('click', () => openPlayer(room, p.id));
+    list.appendChild(row);
+  }
+
+  renderBoardForGame(room);
+
+  document.getElementById('roomModal').classList.add('open');
+}
+
+function renderBoardForGame(room) {
+  const board = document.getElementById('viewBoard');
+  board.innerHTML = '';
+  if (room.gameId === 'hanoi') {
+    const total = room.state.rods.flat().reduce((a, b) => Math.max(a, b), 0) || 4;
+    for (let i = 0; i < 3; i++) {
+      const rod = document.createElement('div');
+      rod.className = 'rod';
+      room.state.rods[i].forEach(size => {
+        const d = document.createElement('div');
+        d.className = 'disk';
+        d.style.width = (30 + size * (120 / total)) + 'px';
+        d.style.background = COLORS[(size - 1) % COLORS.length];
+        rod.appendChild(d);
+      });
+      board.appendChild(rod);
+    }
+  } else if (room.gameId === 'lightsout') {
+    const grid = document.createElement('div');
+    grid.className = 'lo-grid';
+    grid.style.gridTemplateColumns = `repeat(${room.state.size}, 40px)`;
+    for (let r = 0; r < room.state.size; r++) {
+      for (let c = 0; c < room.state.size; c++) {
+        const cell = document.createElement('div');
+        cell.className = 'lo-cell' + (room.state.grid[r][c] ? ' on' : '');
+        grid.appendChild(cell);
+      }
+    }
+    board.appendChild(grid);
+  }
+}
+
+function openPlayer(room, playerId) {
+  socket.emit('admin:player', {
+    gameId: room.gameId, roomId: room.roomId, playerId
+  }, (res) => {
+    if (!res || res.error) {
+      alert(res && res.error || 'Ошибка');
+      return;
+    }
+    document.getElementById('playerTitle').textContent =
+      `Игрок: ${res.player.name}`;
+    document.getElementById('playerSub').innerHTML = `
+      Ходов: <b>${res.player.moves}</b><br>
+      Решил: <b>${res.player.solved ? 'да' : 'нет'}</b><br>
+      Первая победа: <b>${res.player.firstWinAt ? fmtTime(res.player.firstWinAt) : 'ещё не было'}</b>
+    `;
+    document.getElementById('playerModal').classList.add('open');
+  });
+}
+
+function fmtTime(ts) {
+  const d = new Date(ts);
+  return d.toLocaleString('ru-RU');
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+
+// ---------------------------------------------------------------- модалки
+document.getElementById('modalClose').addEventListener('click', () => {
+  document.getElementById('roomModal').classList.remove('open');
+});
+document.getElementById('playerClose').addEventListener('click', () => {
+  document.getElementById('playerModal').classList.remove('open');
+});
+document.getElementById('roomModal').addEventListener('click', e => {
+  if (e.target.id === 'roomModal')
+    document.getElementById('roomModal').classList.remove('open');
+});
+document.getElementById('playerModal').addEventListener('click', e => {
+  if (e.target.id === 'playerModal')
+    document.getElementById('playerModal').classList.remove('open');
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Puzzle Room</title>
+<style>
+  body { font-family: system-ui, sans-serif; background:#1e1e2e; color:#cdd6f4;
+         display:flex; flex-direction:column; align-items:center; padding:20px; }
+  h1 { margin:10px 0; }
+  #info { margin-bottom:12px; font-size:14px; color:#a6adc8; }
+  #board { display:flex; justify-content:center; align-items:flex-end;
+           padding:20px; background:#313244; border-radius:12px; min-height:280px; }
+  #msg { margin-top:15px; min-height:24px; }
+  button { margin-top:15px; padding:10px 20px; background:#89b4fa; color:#1e1e2e;
+           border:none; border-radius:8px; font-weight:bold; cursor:pointer; }
+
+  /* hanoi */
+  .rod { width:180px; height:260px; display:flex; flex-direction:column-reverse;
+         align-items:center; justify-content:flex-start; position:relative;
+         cursor:pointer; border-radius:8px; padding-bottom:10px; }
+  .rod::before { content:""; position:absolute; bottom:10px; width:8px;
+                 height:230px; background:#6c7086; border-radius:4px; }
+  .rod.selected { outline:2px dashed #f9e2af; }
+  .disk { height:22px; border-radius:6px; position:relative; z-index:1; margin-bottom:2px; }
+
+  /* lightsout */
+  .lo-grid { display:grid; gap:6px; }
+  .lo-cell { width:52px; height:52px; border-radius:8px; cursor:pointer;
+             background:#45475a; transition: background .1s; }
+  .lo-cell.on { background:#f9e2af; box-shadow:0 0 8px #f9e2af88; }
+
+  /* modal */
+  .modal { position:fixed; inset:0; background:rgba(0,0,0,.6);
+           display:none; align-items:center; justify-content:center; z-index:10; }
+  .modal.open { display:flex; }
+  .modal-box { background:#313244; padding:24px; border-radius:12px;
+               min-width:280px; text-align:center; }
+  .modal-box input { width:100%; padding:10px; border-radius:8px; border:none;
+                     margin-bottom:12px; font-size:16px; box-sizing:border-box; }
+</style>
+</head>
+<body>
+<h1 id="title">Puzzle Room</h1>
+<div id="info">
+  Комната: <b id="room"></b> · Игрок: <b id="me">—</b> · Ходов: <span id="moves">0</span>
+</div>
+<div id="board"></div>
+<div id="msg"></div>
+<button id="reset">Сбросить</button>
+
+<div class="modal" id="nameModal">
+  <div class="modal-box">
+    <h2>Как вас зовут?</h2>
+    <input id="nameInput" maxlength="30" placeholder="Ваше имя" />
+    <button id="nameSubmit">Войти</button>
+  </div>
+</div>
+
+<div class="modal" id="winModal">
+  <div class="modal-box">
+    <h2>🎉 Победа!</h2>
+    <p id="winText"></p>
+    <button id="winClose">Закрыть</button>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const socket = io();
+const params = new URLSearchParams(location.search);
+const gameId = params.get('game') || 'hanoi';
+const roomId = params.get('room') || 'default';
+
+document.getElementById('room').textContent = roomId;
+document.getElementById('title').textContent = 'Puzzle Room';
+
+let myName = sessionStorage.getItem('pr_name') || '';
+let state = null;
+let renderer = null;
+let winShown = false;
+
+// загружаем клиентский рендерер игры
+const script = document.createElement('script');
+script.src = `/games/${gameId}.js`;
+script.onload = () => {
+  renderer = window.PuzzleGames && window.PuzzleGames[gameId];
+  if (!renderer) {
+    document.getElementById('msg').textContent = 'Неизвестная игра.';
+    return;
+  }
+  document.getElementById('title').textContent = 'Puzzle Room · ' + renderer.title;
+  renderer.mount(document.getElementById('board'), (move) => {
+    socket.emit('move', move);
+  });
+  if (state) renderer.render(state);
+};
+script.onerror = () => {
+  document.getElementById('msg').textContent = 'Не удалось загрузить игру.';
+};
+document.body.appendChild(script);
+
+if (myName) doJoin(myName);
+else document.getElementById('nameModal').classList.add('open');
+
+document.getElementById('nameSubmit').addEventListener('click', () => {
+  const val = document.getElementById('nameInput').value.trim();
+  if (!val) return;
+  myName = val;
+  sessionStorage.setItem('pr_name', myName);
+  document.getElementById('nameModal').classList.remove('open');
+  doJoin(myName);
+});
+document.getElementById('nameInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('nameSubmit').click();
+});
+
+function doJoin(name) {
+  document.getElementById('me').textContent = name;
+  socket.emit('join', { gameId, roomId, name });
+}
+
+socket.on('state', (snap) => {
+  state = snap.state;
+  document.getElementById('moves').textContent = state.moves ?? 0;
+  if (renderer) renderer.render(state);
+
+  if (state.solved && !winShown) {
+    winShown = true;
+    document.getElementById('winText').textContent =
+      `Вы решили головоломку за ${state.moves} ходов.`;
+    document.getElementById('winModal').classList.add('open');
+  }
+  if (!state.solved) winShown = false;
+});
+
+socket.on('error-msg', (text) => showMsg(text, '#f38ba8'));
+
+document.getElementById('winClose').addEventListener('click', () => {
+  document.getElementById('winModal').classList.remove('open');
+});
+
+document.getElementById('reset').addEventListener('click', () => {
+  socket.emit('reset');
+});
+
+function showMsg(text, color = '#fab387') {
+  const el = document.getElementById('msg');
+  el.textContent = text;
+  el.style.color = color;
+}
+</script>
+</body>
+</html>
