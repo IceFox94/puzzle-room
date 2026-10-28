@@ -10,10 +10,11 @@
   #info { margin-bottom:12px; font-size:14px; color:#a6adc8; }
   #board { display:flex; justify-content:center; align-items:flex-end;
            padding:20px; background:#313244; border-radius:12px; min-height:280px; }
-  #msg { margin-top:15px; min-height:24px; }
+  #msg { margin-top:15px; min-height:24px; max-width:520px; text-align:center; }
   button { margin-top:15px; padding:10px 20px; background:#89b4fa; color:#1e1e2e;
            border:none; border-radius:8px; font-weight:bold; cursor:pointer; }
 
+  /* hanoi */
   .rod { width:180px; height:260px; display:flex; flex-direction:column-reverse;
          align-items:center; justify-content:flex-start; position:relative;
          cursor:pointer; border-radius:8px; padding-bottom:10px; }
@@ -22,11 +23,22 @@
   .rod.selected { outline:2px dashed #f9e2af; }
   .disk { height:22px; border-radius:6px; position:relative; z-index:1; margin-bottom:2px; }
 
+  /* lightsout */
   .lo-grid { display:grid; gap:6px; }
   .lo-cell { width:52px; height:52px; border-radius:8px; cursor:pointer;
              background:#45475a; transition: background .1s; }
   .lo-cell.on { background:#f9e2af; box-shadow:0 0 8px #f9e2af88; }
+  .lo-cell.hint {
+    outline: 3px dashed #f9e2af;
+    outline-offset: -3px;
+    animation: hintPulse 1s ease-in-out infinite;
+  }
+  @keyframes hintPulse {
+    0%, 100% { outline-color: #f9e2af; }
+    50% { outline-color: #89b4fa; }
+  }
 
+  /* modal */
   .modal { position:fixed; inset:0; background:rgba(0,0,0,.6);
            display:none; align-items:center; justify-content:center; z-index:10; }
   .modal.open { display:flex; }
@@ -80,6 +92,7 @@ let state = null;
 let renderer = null;
 let winShown = false;
 
+// загружаем клиентский рендерер игры
 const script = document.createElement('script');
 script.src = `/games/${gameId}.js`;
 script.onload = () => {
@@ -100,6 +113,7 @@ script.onerror = () => {
 };
 document.body.appendChild(script);
 
+// имя
 if (myName) doJoin(myName);
 else document.getElementById('nameModal').classList.add('open');
 
@@ -120,6 +134,7 @@ function doJoin(name) {
   socket.emit('join', { gameId, roomId, name });
 }
 
+// состояние комнаты
 socket.on('state', (snap) => {
   state = snap.state;
   document.getElementById('moves').textContent = state.moves ?? 0;
@@ -134,7 +149,15 @@ socket.on('state', (snap) => {
   if (!state.solved) winShown = false;
 });
 
+// ошибки (недопустимый ход и т.п.)
 socket.on('error-msg', (text) => showMsg(text, '#f38ba8'));
+
+// подсказка — только этому игроку
+socket.on('hint', (hint) => {
+  console.log('HINT', hint); // для отладки, можно убрать
+  if (renderer && renderer.showHint) renderer.showHint(hint);
+  if (hint.message) showMsg(hint.message, '#f9e2af');
+});
 
 document.getElementById('winClose').addEventListener('click', () => {
   document.getElementById('winModal').classList.remove('open');
