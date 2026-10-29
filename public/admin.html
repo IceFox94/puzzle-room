@@ -36,9 +36,10 @@
 
   .players-list { display:flex; flex-direction:column; gap:6px; margin-bottom:16px; }
   .player-row { background:#313244; border-radius:8px; padding:8px 12px;
-                cursor:pointer; display:flex; justify-content:space-between; }
+                cursor:pointer; display:flex; justify-content:space-between;
+                gap:12px; }
   .player-row:hover { outline:1px solid #89b4fa; }
-  .player-row .win { color:#a6e3a1; font-size:12px; }
+  .player-row .win { color:#a6e3a1; font-size:12px; text-align:right; }
 
   #viewBoard { display:flex; justify-content:center; align-items:flex-end;
                padding:20px; background:#313244; border-radius:12px; min-height:280px; }
@@ -84,9 +85,9 @@
 const socket = io();
 const COLORS = ['#f38ba8','#fab387','#f9e2af','#a6e3a1','#89b4fa','#cba6f7'];
 
-let data = { games: [], rooms: {} };  // ответ admin:update
-let currentGame = null;               // выбранная игра (id)
-let currentRoom = null;               // выбранная комната (snapshot)
+let data = { games: [], rooms: {} };
+let currentGame = null;
+let currentRoom = null;
 
 socket.emit('admin:subscribe');
 
@@ -95,7 +96,6 @@ socket.on('admin:update', (d) => {
   render();
 });
 
-// ---------------------------------------------------------------- рендер
 function render() {
   if (!currentGame) renderGames();
   else renderRooms();
@@ -104,10 +104,7 @@ function render() {
 
 function renderCrumbs() {
   const crumbs = document.getElementById('crumbs');
-  if (!currentGame) {
-    crumbs.innerHTML = '';
-    return;
-  }
+  if (!currentGame) { crumbs.innerHTML = ''; return; }
   const game = data.games.find(g => g.id === currentGame);
   crumbs.innerHTML =
     `<a id="backGames">Все игры</a> · ${game ? game.title : currentGame}`;
@@ -170,8 +167,7 @@ function openRoom(roomId) {
   if (!room) return;
   currentRoom = room;
 
-  document.getElementById('modalTitle').textContent =
-    `Комната: ${room.roomId}`;
+  document.getElementById('modalTitle').textContent = `Комната: ${room.roomId}`;
   document.getElementById('modalSub').textContent =
     `${room.gameTitle} · ${room.solved ? 'Решено' : 'В процессе'} · ` +
     `Ходов в комнате: ${room.state.moves ?? 0}`;
@@ -185,7 +181,7 @@ function openRoom(roomId) {
     const row = document.createElement('div');
     row.className = 'player-row';
     const win = p.firstWinAt
-      ? `<span class="win">первая победа: ${fmtTime(p.firstWinAt)}</span>`
+      ? `<span class="win">решено в: ${fmtTime(p.firstWinAt)} · за ${p.solvedMoves ?? '?'} ходов</span>`
       : '';
     row.innerHTML = `<span>${escapeHtml(p.name)}</span>${win}`;
     row.addEventListener('click', () => openPlayer(room, p.id));
@@ -193,7 +189,6 @@ function openRoom(roomId) {
   }
 
   renderBoardForGame(room);
-
   document.getElementById('roomModal').classList.add('open');
 }
 
@@ -242,15 +237,16 @@ function openPlayer(room, playerId) {
     document.getElementById('playerSub').innerHTML = `
       Ходов: <b>${res.player.moves}</b><br>
       Решил: <b>${res.player.solved ? 'да' : 'нет'}</b><br>
-      Первая победа: <b>${res.player.firstWinAt ? fmtTime(res.player.firstWinAt) : 'ещё не было'}</b>
+      ${res.player.firstWinAt
+        ? `Решено в: <b>${fmtTime(res.player.firstWinAt)}</b> · за <b>${res.player.solvedMoves ?? '?'}</b> ходов`
+        : `Решено в: <b>ещё не было</b>`}
     `;
     document.getElementById('playerModal').classList.add('open');
   });
 }
 
 function fmtTime(ts) {
-  const d = new Date(ts);
-  return d.toLocaleString('ru-RU');
+  return new Date(ts).toLocaleString('ru-RU');
 }
 
 function escapeHtml(s) {
@@ -259,7 +255,6 @@ function escapeHtml(s) {
   }[c]));
 }
 
-// ---------------------------------------------------------------- модалки
 document.getElementById('modalClose').addEventListener('click', () => {
   document.getElementById('roomModal').classList.remove('open');
 });

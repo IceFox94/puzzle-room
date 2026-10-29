@@ -50,6 +50,7 @@ function roomSnapshot(room) {
       name: p.name,
       moves: p.moves,
       firstWinAt: p.firstWinAt,
+      solvedMoves: p.solvedMoves,
       solved: p.solved,
     })),
   };
@@ -100,6 +101,7 @@ io.on('connection', (socket) => {
         name: finalName,
         moves: 0,
         firstWinAt: null,
+        solvedMoves: null,
         solved: false,
       });
     }
@@ -128,6 +130,7 @@ io.on('connection', (socket) => {
     if (solved && player && !player.solved) {
       player.solved = true;
       player.firstWinAt = Date.now();
+      player.solvedMoves = player.moves;
     }
 
     // индивидуальная подсказка — только этому игроку
@@ -149,6 +152,7 @@ io.on('connection', (socket) => {
     for (const p of room.players.values()) {
       p.moves = 0;
       p.solved = false;
+      // firstWinAt и solvedMoves не трогаем — это «первая победа»
     }
     broadcastRoom(room);
   });
@@ -170,6 +174,7 @@ io.on('connection', (socket) => {
         name: player.name,
         moves: player.moves,
         firstWinAt: player.firstWinAt,
+        solvedMoves: player.solvedMoves,
         solved: player.solved,
       },
       room: roomSnapshot(room),
