@@ -46,8 +46,6 @@
     if (hint.firstRowPresses)
       for (const [r, c] of hint.firstRowPresses) hintCells.add(`${r}:${c}`);
     if (lastState) render(lastState);
-    // текст покажет play.html через тот же приём, что и error-msg
-    if (hint.message && window.showHintText) window.showHintText(hint.message);
   }
 
   window.PuzzleGames = window.PuzzleGames || {};
