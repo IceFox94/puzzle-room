@@ -7,16 +7,34 @@
   body { font-family: system-ui, sans-serif; background:#1e1e2e; color:#cdd6f4;
          display:flex; flex-direction:column; align-items:center; padding:40px 20px; }
   h1 { margin:0 0 8px; }
-  .subtitle { color:#a6adc8; margin-bottom:28px; }
+  .subtitle { color:#a6adc8; margin-bottom:24px; }
+
+  .name-block { width:100%; max-width:720px; margin-bottom:24px; }
+  .name-block label { display:block; font-size:13px; color:#a6adc8; margin-bottom:6px; }
+  .name-block input { width:100%; padding:12px 14px; border-radius:8px; border:none;
+                      font-size:16px; box-sizing:border-box; background:#313244;
+                      color:#cdd6f4; }
+  .name-block input::placeholder { color:#6c7086; }
+
   .games-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(240px,1fr));
                 gap:16px; width:100%; max-width:720px; }
   .game-card { background:#313244; border-radius:12px; padding:20px;
                text-align:center; }
   .game-card h3 { margin:0 0 12px; font-size:18px; }
   .game-card .actions { display:flex; gap:8px; flex-direction:column; }
-  .game-card label { font-size:12px; color:#a6adc8; text-align:left; display:block; }
-  .game-card input { padding:10px; border-radius:8px; border:none;
-                     font-size:14px; box-sizing:border-box; }
+
+  /* поле комнаты — намеренно неброское */
+  .game-card label { font-size:11px; color:#6c7086; text-align:left;
+                     display:block; margin-bottom:2px; font-style:italic; }
+  .game-card input.room-input {
+    padding:5px 8px; border-radius:6px; border:1px solid #45475a;
+    background:transparent; color:#7f849c; font-size:12px; font-style:italic;
+    box-sizing:border-box; width:100%;
+  }
+  .game-card input.room-input:focus {
+    outline:none; border-color:#89b4fa; color:#cdd6f4; font-style:normal;
+  }
+
   .game-card button { padding:10px 16px; background:#89b4fa; color:#1e1e2e;
                       border:none; border-radius:8px; font-weight:bold;
                       cursor:pointer; }
@@ -28,12 +46,32 @@
 
 <h1>Puzzle Room</h1>
 <div class="subtitle">Выберите головоломку и комнату</div>
+
+<div class="name-block">
+  <label for="playerName">Ваше имя (необязательно, но с ним удобнее)</label>
+  <input id="playerName" maxlength="30" placeholder="Например, Маша" />
+</div>
+
 <div class="games-grid" id="gamesGrid">Загрузка...</div>
 
 <script>
 const grid = document.getElementById('gamesGrid');
+const nameInput = document.getElementById('playerName');
 
-// 6 символов: a-z, 0-9
+// подхватываем имя из прошлой сессии
+nameInput.value = sessionStorage.getItem('pr_name') || '';
+
+nameInput.addEventListener('input', () => {
+  const val = nameInput.value.trim();
+  if (val) sessionStorage.setItem('pr_name', val);
+  else sessionStorage.removeItem('pr_name');
+  // обновляем поля комнат у всех карточек
+  document.querySelectorAll('.room-input').forEach(inp => {
+    inp.value = val || randomRoom();
+    inp.dataset.autoFilled = val ? '1' : '0';
+  });
+});
+
 function randomRoom() {
   const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
   let s = '';
@@ -49,14 +87,15 @@ fetch('/api/games')
       grid.textContent = 'Пока нет доступных игр.';
       return;
     }
+    const currentName = nameInput.value.trim();
     for (const game of games) {
       const card = document.createElement('div');
       card.className = 'game-card';
       card.innerHTML = `
         <h3>${escapeHtml(game.title)}</h3>
         <div class="actions">
-          <label for="room-${game.id}">Комната (можно изменить)</label>
-          <input id="room-${game.id}" maxlength="40" />
+          <label for="room-${game.id}">комната</label>
+          <input class="room-input" id="room-${game.id}" maxlength="40" />
           <button id="btn-${game.id}">Играть</button>
         </div>
         <div class="hint">По умолчанию у каждого своя комната. Чтобы играть вместе — введите одно и то же название.</div>
@@ -66,10 +105,12 @@ fetch('/api/games')
       const input = card.querySelector(`#room-${game.id}`);
       const btn = card.querySelector(`#btn-${game.id}`);
 
-      // предзаполняем случайным значением, но не затираем, если игрок уже что-то ввёл
-      input.value = randomRoom();
+      // если имя введено — ставим его; иначе случайное значение
+      input.value = currentName || randomRoom();
 
       function go() {
+        const name = nameInput.value.trim();
+        if (name) sessionStorage.setItem('pr_name', name);
         const room = input.value.trim() || randomRoom();
         location.href = `/play.html?game=${encodeURIComponent(game.id)}&room=${encodeURIComponent(room)}`;
       }

@@ -40,7 +40,6 @@ function playerProgress(state, player) {
 }
 
 // ---------- решение над GF(2) ----------
-// Возвращает массив нажатий [[r,c], ...] или null, если нерешаемо.
 function solveGF2(grid) {
   const n = SIZE * SIZE;
   const M = Array.from({ length: n }, () => Array(n + 1).fill(0));
@@ -125,43 +124,24 @@ function getHint(state, playerMoves) {
     }
   }
 
-  // 2) пороги по ходам
-  if (playerMoves >= 150) {
-    const presses = solveGF2(state.grid);
-    return {
-      type: 'next-move',
-      presses: presses ? presses.slice(0, 1) : [],
-      message: 'Подсказка: нажми подсвеченную клетку — это один из шагов решения.',
-    };
-  }
-  if (playerMoves >= 100) {
-    const presses = solveGF2(state.grid);
-    return {
-      type: 'next-move',
-      presses: presses ? presses.slice(0, 2) : [],
-      message: 'Подсказка: два нажатия из решения подсвечены.',
-    };
-  }
-  if (playerMoves >= 50) {
-    const presses = solveGF2(state.grid);
-    return {
-      type: 'next-move',
-      presses: presses ? presses.slice(0, 3) : [],
-      message: 'Подсказка: три нажатия из решения подсвечены.',
-    };
-  }
-  if (playerMoves >= 30) {
+  // 2) с 30 по 149 ход — только текстовая подсказка про chasing
+  if (playerMoves >= 30 && playerMoves < 150) {
     if (isChasingNotStarted(state.grid)) {
       return {
         type: 'chase-start',
         message: 'Совет: начни с верхней строки — для каждой горящей клетки нажимай клетку прямо под ней. Так ты погасишь строку за строкой.',
       };
     }
+    return null;
+  }
+
+  // 3) с 150 хода — подсветка конкретных клеток
+  if (playerMoves >= 150) {
     const presses = solveGF2(state.grid);
     return {
       type: 'next-move',
       presses: presses ? presses.slice(0, 1) : [],
-      message: 'Подсказка: одно нажатие из решения подсвечено.',
+      message: 'Подсказка: нажми подсвеченную клетку — это один из шагов решения.',
     };
   }
 
