@@ -42,6 +42,7 @@ function playerProgress(state, player) {
 module.exports = {
   id: 'hanoi',
   title: 'Ханойская башня',
+  description: 'Перемести все диски на третий стержень, не кладя больший диск на меньший.',
   diskCount: DISK_COUNT,
   createState,
   applyMove,

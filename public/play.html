@@ -7,6 +7,11 @@
   body { font-family: system-ui, sans-serif; background:#1e1e2e; color:#cdd6f4;
          display:flex; flex-direction:column; align-items:center; padding:20px; }
   h1 { margin:10px 0; }
+  #description { max-width:520px; text-align:center; color:#cdd6f4;
+                 margin-bottom:4px; font-size:15px; }
+  #help { max-width:520px; text-align:center; color:#6c7086;
+          margin-bottom:12px; font-size:12px; font-style:italic; }
+  #description:empty, #help:empty { display:none; }
   #info { margin-bottom:12px; font-size:14px; color:#a6adc8; }
   #board { display:flex; justify-content:center; align-items:flex-end;
            padding:20px; background:#313244; border-radius:12px; min-height:280px; }
@@ -36,6 +41,9 @@
     50% { outline-color: #89b4fa; }
   }
 
+  .sep-svg { width:min(78vw, 420px); height:min(78vw, 420px);
+             display:block; touch-action:none; cursor:crosshair; }
+
   .modal { position:fixed; inset:0; background:rgba(0,0,0,.6);
            display:none; align-items:center; justify-content:center; z-index:10; }
   .modal.open { display:flex; }
@@ -47,6 +55,8 @@
 </head>
 <body>
 <h1 id="title">Puzzle Room</h1>
+<div id="description"></div>
+<div id="help"></div>
 <div id="info">
   Комната: <b id="room"></b> · Игрок: <b id="me">—</b> · Ходов: <span id="moves">0</span>
 </div>
@@ -97,6 +107,8 @@ script.onload = () => {
     return;
   }
   document.getElementById('title').textContent = renderer.title;
+  document.getElementById('description').textContent = renderer.description || '';
+  document.getElementById('help').textContent = renderer.help || '';
   document.title = renderer.title + ' · Puzzle Room';
   renderer.mount(document.getElementById('board'), (move) => {
     socket.emit('move', move);
@@ -140,7 +152,7 @@ socket.on('state', (snap) => {
   if (state.solved && !winShown) {
     winShown = true;
     document.getElementById('winText').textContent =
-      `Вы решили головоломку за ${state.moves} ходов.`;
+      `Вы решили головоломку за ${state.moves} ${plural(state.moves, ['ход', 'хода', 'ходов'])}.`;
     document.getElementById('winModal').classList.add('open');
   }
   if (!state.solved) winShown = false;
@@ -165,6 +177,14 @@ function showMsg(text, color = '#fab387') {
   const el = document.getElementById('msg');
   el.textContent = text;
   el.style.color = color;
+}
+
+function plural(n, forms) {
+  const n10 = n % 10;
+  const n100 = n % 100;
+  if (n10 === 1 && n100 !== 11) return forms[0];
+  if (n10 >= 2 && n10 <= 4 && (n100 < 10 || n100 >= 20)) return forms[1];
+  return forms[2];
 }
 </script>
 </body>

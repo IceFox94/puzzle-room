@@ -151,6 +151,7 @@ function getHint(state, playerMoves) {
 module.exports = {
   id: 'lightsout',
   title: 'Погаси свет',
+  description: 'Погаси все огни, нажимая на клетки — каждая переключает себя и соседей.',
   size: SIZE,
   createState,
   applyMove,

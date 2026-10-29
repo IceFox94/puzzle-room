@@ -20,7 +20,9 @@
                 gap:16px; width:100%; max-width:720px; }
   .game-card { background:#313244; border-radius:12px; padding:20px;
                text-align:center; }
-  .game-card h3 { margin:0 0 12px; font-size:18px; }
+  .game-card h3 { margin:0 0 8px; font-size:18px; }
+  .game-card .desc { min-height:32px; margin:0 0 12px; font-size:12px;
+                     line-height:1.35; color:#a6adc8; }
   .game-card .actions { display:flex; gap:8px; flex-direction:column; }
 
   /* поле комнаты — намеренно неброское */
@@ -93,6 +95,7 @@ fetch('/api/games')
       card.className = 'game-card';
       card.innerHTML = `
         <h3>${escapeHtml(game.title)}</h3>
+        <p class="desc">${escapeHtml(game.description || '')}</p>
         <div class="actions">
           <label for="room-${game.id}">комната</label>
           <input class="room-input" id="room-${game.id}" maxlength="40" />

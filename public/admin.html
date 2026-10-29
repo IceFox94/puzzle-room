@@ -52,6 +52,7 @@
   .lo-grid { display:grid; gap:6px; }
   .lo-cell { width:40px; height:40px; border-radius:6px; background:#45475a; }
   .lo-cell.on { background:#f9e2af; }
+  .sep-svg { width:320px; height:320px; display:block; }
 
   button { margin-top:16px; padding:10px 20px; background:#89b4fa; color:#1e1e2e;
            border:none; border-radius:8px; font-weight:bold; cursor:pointer; }
@@ -181,7 +182,7 @@ function openRoom(roomId) {
     const row = document.createElement('div');
     row.className = 'player-row';
     const win = p.firstWinAt
-      ? `<span class="win">решено в: ${fmtTime(p.firstWinAt)} · за ${p.solvedMoves ?? '?'} ходов</span>`
+      ? `<span class="win">решено в: ${fmtTime(p.firstWinAt)} · за ${fmtMoves(p.solvedMoves)}</span>`
       : '';
     row.innerHTML = `<span>${escapeHtml(p.name)}</span>${win}`;
     row.addEventListener('click', () => openPlayer(room, p.id));
@@ -221,7 +222,87 @@ function renderBoardForGame(room) {
       }
     }
     board.appendChild(grid);
+  } else if (room.gameId === 'separate') {
+    board.appendChild(buildSeparateBoard(room.state));
   }
+}
+
+function buildSeparateBoard(state) {
+  const NS = 'http://www.w3.org/2000/svg';
+  const MIN = -0.5;
+  const VIEW = 4;
+  const SIZE = 3;
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', `${MIN} ${MIN} ${VIEW} ${VIEW}`);
+  svg.setAttribute('class', 'sep-svg');
+
+  const add = (tag, attrs) => {
+    const el = document.createElementNS(NS, tag);
+    for (const key in attrs) el.setAttribute(key, attrs[key]);
+    svg.appendChild(el);
+    return el;
+  };
+
+  add('rect', { x: MIN, y: MIN, width: VIEW, height: VIEW, rx: 0.12, fill: '#292a3a' });
+  for (let i = 0; i <= SIZE; i++) {
+    add('line', { x1: i, y1: 0, x2: i, y2: SIZE, stroke: '#45475a', 'stroke-width': 0.012 });
+    add('line', { x1: 0, y1: i, x2: SIZE, y2: i, stroke: '#45475a', 'stroke-width': 0.012 });
+  }
+  add('rect', { x: 0, y: 0, width: SIZE, height: SIZE, fill: 'none',
+                stroke: '#6c7086', 'stroke-width': 0.03, rx: 0.03 });
+
+  for (let row = 0; row < SIZE; row++) {
+    for (let col = 0; col < SIZE; col++) {
+      add('path', {
+        d: separateStarPath(col + 0.5, row + 0.5, 0.17, 0.072),
+        fill: '#f9e2af',
+      });
+    }
+  }
+
+  const squareColor = state.solved ? '#a6e3a1' : '#89b4fa';
+  for (const shape of state.shapes) {
+    if (shape.type === 'line') {
+      add('line', {
+        x1: shape.x1, y1: shape.y1, x2: shape.x2, y2: shape.y2,
+        stroke: '#7f849c', 'stroke-width': 0.03, 'stroke-linecap': 'round',
+      });
+    } else if (shape.type === 'square') {
+      add('polygon', {
+        points: separateSquarePoints(shape),
+        fill: 'none', stroke: squareColor, 'stroke-width': 0.045,
+        'stroke-linejoin': 'round',
+      });
+    }
+  }
+
+  return svg;
+}
+
+function separateSquarePoints(square) {
+  const rad = square.rotation * Math.PI / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const h = square.h;
+  return [[-h, -h], [h, -h], [h, h], [-h, h]]
+    .map(([x, y]) => {
+      const rx = x * cos - y * sin + square.cx;
+      const ry = x * sin + y * cos + square.cy;
+      return `${Math.round(rx * 1000) / 1000},${Math.round(ry * 1000) / 1000}`;
+    })
+    .join(' ');
+}
+
+function separateStarPath(cx, cy, outer, inner) {
+  let d = '';
+  for (let i = 0; i < 10; i++) {
+    const radius = i % 2 === 0 ? outer : inner;
+    const angle = -Math.PI / 2 + i * Math.PI / 5;
+    const x = cx + radius * Math.cos(angle);
+    const y = cy + radius * Math.sin(angle);
+    d += (i === 0 ? 'M' : 'L') + (Math.round(x * 1000) / 1000) + ' ' + (Math.round(y * 1000) / 1000);
+  }
+  return d + 'Z';
 }
 
 function openPlayer(room, playerId) {
@@ -238,7 +319,7 @@ function openPlayer(room, playerId) {
       Ходов: <b>${res.player.moves}</b><br>
       Решил: <b>${res.player.solved ? 'да' : 'нет'}</b><br>
       ${res.player.firstWinAt
-        ? `Решено в: <b>${fmtTime(res.player.firstWinAt)}</b> · за <b>${res.player.solvedMoves ?? '?'}</b> ходов`
+        ? `Решено в: <b>${fmtTime(res.player.firstWinAt)}</b> · за <b>${fmtMoves(res.player.solvedMoves)}</b>`
         : `Решено в: <b>ещё не было</b>`}
     `;
     document.getElementById('playerModal').classList.add('open');
@@ -247,6 +328,19 @@ function openPlayer(room, playerId) {
 
 function fmtTime(ts) {
   return new Date(ts).toLocaleString('ru-RU');
+}
+
+function fmtMoves(n) {
+  if (n == null) return '? ходов';
+  return `${n} ${plural(n, ['ход', 'хода', 'ходов'])}`;
+}
+
+function plural(n, forms) {
+  const n10 = n % 10;
+  const n100 = n % 100;
+  if (n10 === 1 && n100 !== 11) return forms[0];
+  if (n10 >= 2 && n10 <= 4 && (n100 < 10 || n100 >= 20)) return forms[1];
+  return forms[2];
 }
 
 function escapeHtml(s) {
