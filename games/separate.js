@@ -12,6 +12,11 @@ const GRID_N = 400;
 const WALL_HALF = 0.006;
 const EPS = 1e-6;
 
+// Шаг привязки полустороны квадрата. На столько же прощаем неточность рисования:
+// если фигура отличается от верной на один шаг, решение всё равно засчитывается.
+const SNAP_STEP = 0.0625;
+const SOLVE_TOLERANCE = SNAP_STEP;
+
 function createState() {
   return {
     size: SIZE,
@@ -67,27 +72,9 @@ function getHint(state, playerMoves) {
     };
   }
 
-  if (squares.length === 0 && state.shapes.length > 0) {
-    return {
-      message: 'Замкни линию — тогда она превратится в ровный квадрат.',
-    };
-  }
-
   if (squares.length === 1) {
     return {
-      message: 'Первый квадрат готов. Нарисуй второй.',
-    };
-  }
-
-  if (squares.length === 2) {
-    return {
-      message: 'Пока не выходит. Внешний ромб должен касаться краёв поля, а внутренний квадрат — внешнего ромба.',
-    };
-  }
-
-  if (playerMoves >= 4) {
-    return {
-      message: 'Подсказка: внешний ромб должен касаться краёв поля, а внутренний квадрат — внешнего ромба.',
+      message: 'Первый квадрат готов! Рисуй второй.',
     };
   }
 
@@ -152,8 +139,7 @@ function snapStroke(rawPoints) {
 }
 
 function snapHalfSide(halfSide) {
-  const step = 0.0625;
-  return Math.max(step, Math.round(halfSide / step) * step);
+  return Math.max(SNAP_STEP, Math.round(halfSide / SNAP_STEP) * SNAP_STEP);
 }
 
 function snapCenter(value) {
@@ -233,7 +219,28 @@ function minAreaAngle(pts) {
 function computeSolved(state) {
   const squares = state.shapes.filter(s => s.type === 'square');
   if (squares.length !== 2) return false;
-  return allStarsSeparated(squares);
+  if (allStarsSeparated(squares)) return true;
+  return allStarsSeparatedWithTolerance(squares);
+}
+
+// Прощаем небольшой промах: пробуем сдвинуть полусторону одного из квадратов
+// на один шаг привязки в обе стороны. Это компенсирует дрожание руки,
+// но не превращает заведомо неверное решение в верное.
+function allStarsSeparatedWithTolerance(squares) {
+  for (let i = 0; i < squares.length; i++) {
+    for (const offset of [-SOLVE_TOLERANCE, SOLVE_TOLERANCE]) {
+      const h = squares[i].h + offset;
+      if (h <= 0) continue;
+
+      const adjusted = squares.map((square, index) => (
+        index === i ? { ...square, h } : square
+      ));
+
+      if (allStarsSeparated(adjusted)) return true;
+    }
+  }
+
+  return false;
 }
 
 function allStarsSeparated(squares) {
