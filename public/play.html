@@ -44,6 +44,16 @@
   .sep-svg { width:min(78vw, 420px); height:min(78vw, 420px);
              display:block; touch-action:none; cursor:crosshair; }
 
+  .nl-svg { width:min(calc(100vw - 80px), 520px);
+            height:min(calc(100vw - 80px), 520px);
+            display:block; touch-action:none; cursor:crosshair;
+            user-select:none; -webkit-user-select:none; }
+  .nl-hint-ring { animation: nlHintPulse 1.1s ease-in-out infinite; }
+  @keyframes nlHintPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.25; }
+  }
+
   .modal { position:fixed; inset:0; background:rgba(0,0,0,.6);
            display:none; align-items:center; justify-content:center; z-index:10; }
   .modal.open { display:flex; }

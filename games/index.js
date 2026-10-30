@@ -1,6 +1,7 @@
 const games = {
   hanoi: require('./hanoi'),
   lightsout: require('./lightsout'),
+  numberlink: require('./numberlink'),
   separate: require('./separate'),
 };
 

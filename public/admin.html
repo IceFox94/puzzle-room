@@ -53,6 +53,7 @@
   .lo-cell { width:40px; height:40px; border-radius:6px; background:#45475a; }
   .lo-cell.on { background:#f9e2af; }
   .sep-svg { width:320px; height:320px; display:block; }
+  .nl-svg { width:320px; height:320px; display:block; }
 
   button { margin-top:16px; padding:10px 20px; background:#89b4fa; color:#1e1e2e;
            border:none; border-radius:8px; font-weight:bold; cursor:pointer; }
@@ -224,6 +225,8 @@ function renderBoardForGame(room) {
     board.appendChild(grid);
   } else if (room.gameId === 'separate') {
     board.appendChild(buildSeparateBoard(room.state));
+  } else if (room.gameId === 'numberlink') {
+    board.appendChild(buildNumberlinkBoard(room.state));
   }
 }
 
@@ -303,6 +306,109 @@ function separateStarPath(cx, cy, outer, inner) {
     d += (i === 0 ? 'M' : 'L') + (Math.round(x * 1000) / 1000) + ' ' + (Math.round(y * 1000) / 1000);
   }
   return d + 'Z';
+}
+
+function buildNumberlinkBoard(state) {
+  const NS = 'http://www.w3.org/2000/svg';
+  const size = state.size;
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${size} ${size}`);
+  svg.setAttribute('class', 'nl-svg');
+
+  const add = (tag, attrs) => {
+    const el = document.createElementNS(NS, tag);
+    for (const key in attrs) el.setAttribute(key, attrs[key]);
+    svg.appendChild(el);
+    return el;
+  };
+
+  add('rect', {
+    x: 0, y: 0, width: size, height: size,
+    rx: 0.08, fill: state.solved ? '#26332f' : '#24273a',
+  });
+
+  for (let i = 1; i < size; i++) {
+    add('line', {
+      x1: i, y1: 0.04, x2: i, y2: size - 0.04,
+      stroke: '#3b3d52', 'stroke-width': 0.012,
+    });
+    add('line', {
+      x1: 0.04, y1: i, x2: size - 0.04, y2: i,
+      stroke: '#3b3d52', 'stroke-width': 0.012,
+    });
+  }
+
+  add('rect', {
+    x: 0.01, y: 0.01, width: size - 0.02, height: size - 0.02,
+    rx: 0.08, fill: 'none',
+    stroke: state.solved ? '#a6e3a1' : '#585b70',
+    'stroke-width': 0.018,
+  });
+
+  for (const pair of state.pairs) {
+    const color = numberlinkColor(pair.id);
+    const path = state.paths[pair.id];
+    if (!Array.isArray(path) || path.length < 2) continue;
+
+    const points = path.map(cell => {
+      const p = numberlinkCenter(cell, size);
+      return `${p.x},${p.y}`;
+    }).join(' ');
+
+    const common = {
+      points, fill: 'none',
+      'stroke-linecap': 'round', 'stroke-linejoin': 'round',
+    };
+    add('polyline', { ...common, stroke: '#1e1e2e', 'stroke-width': 0.30 });
+    add('polyline', { ...common, stroke: color, 'stroke-width': 0.19 });
+    add('polyline', { ...common, stroke: '#ffffff', 'stroke-width': 0.055, opacity: 0.30 });
+  }
+
+  for (const pair of state.pairs) {
+    const color = numberlinkColor(pair.id);
+
+    for (const cell of [pair.a, pair.b]) {
+      const { x, y } = numberlinkCenter(cell, size);
+
+      add('circle', { cx: x, cy: y, r: 0.44, fill: color, opacity: 0.14 });
+      add('circle', {
+        cx: x, cy: y, r: 0.31, fill: color,
+        stroke: '#1e1e2e', 'stroke-width': 0.03,
+      });
+      add('circle', {
+        cx: x - 0.09, cy: y - 0.10, r: 0.07,
+        fill: '#ffffff', opacity: 0.35,
+      });
+
+      const text = add('text', {
+        x, y: y + 0.01,
+        'text-anchor': 'middle',
+        'dominant-baseline': 'central',
+        'font-family': 'system-ui, sans-serif',
+        'font-size': 0.40,
+        'font-weight': 700,
+        fill: '#1e1e2e',
+      });
+      text.textContent = String(pair.id);
+    }
+  }
+
+  return svg;
+}
+
+function numberlinkColor(id) {
+  const palette = [
+    '#f38ba8', '#89b4fa', '#a6e3a1', '#fab387',
+    '#cba6f7', '#94e2d5', '#f9e2af', '#f5c2e7',
+  ];
+  return palette[(id - 1) % palette.length];
+}
+
+function numberlinkCenter(cell, size) {
+  return {
+    x: (cell % size) + 0.5,
+    y: Math.floor(cell / size) + 0.5,
+  };
 }
 
 function openPlayer(room, playerId) {
