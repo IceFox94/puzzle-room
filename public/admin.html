@@ -24,6 +24,12 @@
   .game-toggle input { width:16px; height:16px; accent-color:#a6e3a1;
                        cursor:pointer; }
   .game-card.disabled .game-toggle { color:#f9e2af; }
+  .game-difficulty { display:flex; align-items:center; justify-content:center; gap:6px;
+                     margin-bottom:10px; font-size:12px; font-weight:normal;
+                     color:#a6adc8; }
+  .game-difficulty select { padding:4px 6px; border-radius:6px;
+                            border:1px solid #45475a; background:#1e1e2e;
+                            color:#cdd6f4; font-size:12px; cursor:pointer; }
 
   .rooms-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(260px,1fr));
                 gap:16px; }
@@ -133,11 +139,23 @@ function renderGames() {
     const active = rooms.filter(r => r.players.length > 0).length;
     const card = document.createElement('div');
     card.className = 'game-card' + (game.enabled ? '' : ' disabled');
+    const difficultyControl = game.id === 'numberlink' && Array.isArray(game.difficulties)
+      ? `
+      <label class="game-difficulty" title="Сложность для новых комнат Numberlink">
+        <span>Сложность</span>
+        <select class="difficulty-select">
+          ${game.difficulties.map(d =>
+            `<option value="${escapeHtml(d.id)}"${d.id === game.difficulty ? ' selected' : ''}>${escapeHtml(d.label)}</option>`
+          ).join('')}
+        </select>
+      </label>`
+      : '';
     card.innerHTML = `
       <label class="game-toggle" title="Снимите галочку, чтобы заблокировать игру для игроков">
         <input type="checkbox"${game.enabled ? ' checked' : ''} />
         <span>${game.enabled ? 'Доступна' : 'Заблокирована'}</span>
       </label>
+      ${difficultyControl}
       <div class="game-title">${escapeHtml(game.title)}</div>
       <span class="count">Комнат: ${rooms.length} · Активных: ${active}</span>
     `;
@@ -156,6 +174,23 @@ function renderGames() {
         }
       });
     });
+
+    const difficulty = card.querySelector('.game-difficulty');
+    const difficultySelect = card.querySelector('.difficulty-select');
+    if (difficulty) {
+      difficulty.addEventListener('click', (event) => event.stopPropagation());
+    }
+    if (difficultySelect) {
+      difficultySelect.addEventListener('change', () => {
+        socket.emit('admin:set-numberlink-difficulty', {
+          difficulty: difficultySelect.value,
+        }, (res) => {
+          if (!res || res.error) {
+            alert(res && res.error || 'Не удалось изменить сложность.');
+          }
+        });
+      });
+    }
 
     card.addEventListener('click', () => {
       currentGame = game.id;
@@ -181,6 +216,11 @@ function renderRooms() {
     const status = room.solved
       ? '<span class="solved">Решено</span>'
       : '<span class="open">В процессе</span>';
+    const difficultyText = room.gameId === 'numberlink' && room.difficulty
+      ? `<div style="font-size:13px;color:#a6adc8;margin-top:4px;">
+           Сложность: ${escapeHtml(difficultyLabel(room.difficulty))}
+         </div>`
+      : '';
     card.innerHTML = `
       <h3>${escapeHtml(room.roomId)}</h3>
       <div>${status}</div>
@@ -188,10 +228,19 @@ function renderRooms() {
         Игроков: ${room.players.length}
         ${room.players.length ? '· ' + room.players.map(p => escapeHtml(p.name)).join(', ') : ''}
       </div>
+      ${difficultyText}
     `;
     card.addEventListener('click', () => openRoom(room.roomId));
     grid.appendChild(card);
   }
+}
+
+function difficultyLabel(id) {
+  const game = data.games.find(g => g.id === 'numberlink');
+  const option = game && Array.isArray(game.difficulties)
+    ? game.difficulties.find(d => d.id === id)
+    : null;
+  return option ? option.label : id;
 }
 
 function openRoom(roomId) {
@@ -199,9 +248,12 @@ function openRoom(roomId) {
   if (!room) return;
   currentRoom = room;
 
+  const difficultyText = room.gameId === 'numberlink' && room.difficulty
+    ? ` · Сложность: ${difficultyLabel(room.difficulty)}`
+    : '';
   document.getElementById('modalTitle').textContent = `Комната: ${room.roomId}`;
   document.getElementById('modalSub').textContent =
-    `${room.gameTitle} · ${room.solved ? 'Решено' : 'В процессе'} · ` +
+    `${room.gameTitle} · ${room.solved ? 'Решено' : 'В процессе'}${difficultyText} · ` +
     `Ходов в комнате: ${room.state.moves ?? 0}`;
 
   const list = document.getElementById('playersList');

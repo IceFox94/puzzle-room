@@ -1,24 +1,70 @@
-// Готовые поля Numberlink. Каждая пара — это две клетки-конца одной линии.
+// Готовые поля Numberlink, разложенные по сложности.
+// Каждая пара — это две клетки-конца одной линии.
 // Клетки пронумерованы по строкам: index = row * size + col.
-const PUZZLES = [
-  // 5x5
-  { size: 5, pairs: [[3, 0], [7, 4], [12, 6], [23, 17], [24, 14]] },
-  { size: 5, pairs: [[2, 0], [7, 18], [12, 10], [20, 17], [23, 3]] },
-  { size: 5, pairs: [[3, 0], [4, 8], [5, 12], [18, 21], [19, 22]] },
-  // 6x6
-  { size: 6, pairs: [[0, 20], [5, 3], [7, 24], [26, 13], [29, 16], [35, 30]] },
-  { size: 6, pairs: [[5, 35], [12, 2], [13, 16], [14, 27], [22, 32], [26, 18]] },
-  { size: 6, pairs: [[13, 21], [15, 2], [23, 5], [24, 7], [26, 30], [32, 27]] },
-  // 7x7
-  { size: 7, pairs: [[3, 8], [19, 34], [20, 4], [21, 29], [28, 46], [36, 16], [47, 39]] },
-  { size: 7, pairs: [[0, 9], [6, 10], [14, 23], [19, 27], [32, 42], [34, 17], [43, 48]] },
-  { size: 7, pairs: [[4, 0], [11, 25], [12, 48], [21, 30], [22, 28], [33, 46], [37, 9]] },
-];
+const PUZZLES = {
+  easy: [
+    { size: 8, pairs: [[52, 54], [62, 46], [38, 30], [26, 40], [48, 58], [59, 42], [12, 35], [34, 49], [13, 10], [29, 14], [43, 20], [9, 18]] },
+    { size: 8, pairs: [[4, 21], [13, 22], [11, 10], [17, 8], [16, 48], [56, 41], [33, 43], [51, 58], [59, 53], [52, 47], [55, 46], [25, 5]] },
+    { size: 8, pairs: [[21, 23], [59, 50], [51, 57], [56, 25], [33, 18], [4, 6], [19, 44], [52, 37], [7, 11], [54, 20], [31, 60], [17, 3]] },
+    { size: 8, pairs: [[18, 25], [5, 7], [15, 13], [21, 31], [59, 41], [42, 46], [45, 28], [36, 43], [9, 4], [26, 10], [30, 60], [35, 56]] },
+  ],
+  medium: [
+    { size: 8, pairs: [[18, 3], [4, 21], [22, 5], [29, 33], [45, 54], [48, 51], [6, 39], [25, 37], [46, 58], [16, 10]] },
+    { size: 8, pairs: [[47, 28], [13, 15], [7, 5], [61, 63], [55, 46], [38, 30], [45, 51], [1, 25], [42, 2], [24, 50]] },
+    { size: 8, pairs: [[59, 53], [52, 54], [62, 39], [12, 14], [22, 36], [28, 19], [51, 42], [38, 4], [50, 16], [25, 8]] },
+    { size: 8, pairs: [[22, 20], [12, 27], [26, 10], [14, 15], [55, 51], [41, 16], [52, 46], [23, 47], [35, 13], [49, 29]] },
+  ],
+  hard: [
+    { size: 9, pairs: [[47, 50], [36, 19], [18, 11], [35, 34], [53, 61], [60, 71], [80, 68], [13, 30], [2, 14], [23, 52], [54, 49], [67, 56]] },
+    { size: 9, pairs: [[55, 74], [49, 22], [59, 51], [52, 68], [44, 7], [16, 33], [38, 27], [39, 2], [72, 36], [65, 48], [77, 53], [50, 10]] },
+    { size: 9, pairs: [[17, 12], [32, 39], [48, 59], [76, 63], [54, 65], [66, 37], [36, 9], [0, 29], [62, 34], [23, 8], [40, 79], [50, 67]] },
+    { size: 9, pairs: [[62, 79], [67, 69], [70, 58], [14, 13], [12, 11], [42, 31], [40, 29], [54, 74], [73, 64], [10, 38], [37, 78], [35, 15]] },
+  ],
+  expert: [
+    { size: 9, pairs: [[72, 45], [46, 73], [74, 66], [61, 51], [48, 39], [40, 20], [3, 14], [57, 13], [42, 44], [9, 18], [16, 67]] },
+    { size: 9, pairs: [[59, 69], [70, 76], [26, 16], [15, 3], [39, 57], [37, 18], [43, 50], [9, 22], [36, 56], [67, 62], [2, 38]] },
+    { size: 9, pairs: [[36, 18], [38, 12], [11, 4], [80, 59], [57, 64], [47, 30], [41, 66], [50, 34], [5, 25], [73, 9], [61, 32]] },
+    { size: 9, pairs: [[42, 62], [71, 76], [67, 57], [33, 40], [16, 9], [41, 60], [66, 34], [54, 13], [6, 43], [20, 55]] },
+  ],
+};
 
-function createState() {
-  const puzzle = PUZZLES[Math.floor(Math.random() * PUZZLES.length)];
+const DIFFICULTIES = {
+  easy: { label: 'Лёгкая', size: 8, pairs: 12 },
+  medium: { label: 'Средняя', size: 8, pairs: 10 },
+  hard: { label: 'Сложная', size: 9, pairs: 12 },
+  expert: { label: 'Эксперт', size: 9, pairs: '10–11' },
+};
+const DEFAULT_DIFFICULTY = 'medium';
+const DIFFICULTY_ORDER = ['easy', 'medium', 'hard', 'expert'];
+
+function isDifficulty(value) {
+  return typeof value === 'string'
+    && Object.prototype.hasOwnProperty.call(PUZZLES, value);
+}
+
+function normalizeDifficulty(value) {
+  return isDifficulty(value) ? value : DEFAULT_DIFFICULTY;
+}
+
+function difficultyOptions() {
+  return DIFFICULTY_ORDER.map(id => ({
+    id,
+    label: DIFFICULTIES[id].label,
+    size: DIFFICULTIES[id].size,
+    pairs: DIFFICULTIES[id].pairs,
+  }));
+}
+
+function createState(options) {
+  const requested = options && typeof options === 'object'
+    ? options.difficulty
+    : options;
+  const difficulty = normalizeDifficulty(requested);
+  const pool = PUZZLES[difficulty];
+  const puzzle = pool[Math.floor(Math.random() * pool.length)];
   return {
     size: puzzle.size,
+    difficulty,
     pairs: puzzle.pairs.map(([a, b], index) => ({ id: index + 1, a, b })),
     paths: {},
     moves: 0,
@@ -169,6 +215,7 @@ function isSolved(state) {
 function publicState(state) {
   return {
     size: state.size,
+    difficulty: normalizeDifficulty(state.difficulty),
     pairs: state.pairs,
     paths: state.paths,
     moves: state.moves,
@@ -216,6 +263,11 @@ module.exports = {
   title: 'Номерлинк',
   description: 'Соедини одинаковые цифры линиями, не пересекая их и заполнив всё поле.',
   help: 'Веди линию от одной цифры до другой. Нажми на цифру, чтобы стереть её линию. Все клетки поля должны быть заняты.',
+  DIFFICULTIES,
+  DIFFICULTY_ORDER,
+  DEFAULT_DIFFICULTY,
+  isDifficulty,
+  difficultyOptions,
   createState,
   applyMove,
   isSolved,

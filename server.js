@@ -16,6 +16,16 @@ app.use(express.static(path.join(__dirname, 'public')));
 // По умолчанию все игры доступны.
 const disabledGames = new Set();
 
+// Сложность Numberlink для новых комнат. Меняется только из админки.
+let numberlinkDifficulty = 'medium';
+
+function numberlinkDifficultyOptions() {
+  const game = getGame('numberlink');
+  return game && typeof game.difficultyOptions === 'function'
+    ? game.difficultyOptions()
+    : [];
+}
+
 function listPublicGames() {
   return listGames().map(game => {
     if (disabledGames.has(game.id)) {
@@ -45,10 +55,12 @@ function roomKey(gameId, roomId) {
 function createRoom(gameId, roomId) {
   const game = getGame(gameId);
   if (!game) return null;
+  const difficulty = gameId === 'numberlink' ? numberlinkDifficulty : null;
   const room = {
     gameId,
     roomId,
-    state: game.createState(),
+    difficulty,
+    state: game.createState(difficulty ? { difficulty } : undefined),
     players: new Map(),
   };
   rooms.set(roomKey(gameId, roomId), room);
@@ -62,6 +74,7 @@ function roomSnapshot(room) {
     gameId: room.gameId,
     gameTitle: game.title,
     roomId: room.roomId,
+    difficulty: room.difficulty || null,
     state: game.publicState(room.state),
     solved,
     players: Array.from(room.players.values()).map(p => ({
@@ -84,10 +97,17 @@ function adminSnapshot() {
     grouped[room.gameId].push(snap);
   }
   return {
-    games: listGames().map(game => ({
-      ...game,
-      enabled: !disabledGames.has(game.id),
-    })),
+    games: listGames().map(game => {
+      const entry = {
+        ...game,
+        enabled: !disabledGames.has(game.id),
+      };
+      if (game.id === 'numberlink') {
+        entry.difficulty = numberlinkDifficulty;
+        entry.difficulties = numberlinkDifficultyOptions();
+      }
+      return entry;
+    }),
     rooms: grouped,
   };
 }
@@ -181,7 +201,9 @@ io.on('connection', (socket) => {
     const room = rooms.get(roomKey(gameId, roomId));
     if (!room) return;
     const game = getGame(gameId);
-    room.state = game.createState();
+    room.state = game.createState(
+      room.difficulty ? { difficulty: room.difficulty } : undefined
+    );
     for (const p of room.players.values()) {
       p.moves = 0;
       p.solved = false;
@@ -210,6 +232,19 @@ io.on('connection', (socket) => {
     else disabledGames.add(gameId);
 
     io.emit('games:update', listPublicGames());
+    io.to('admin').emit('admin:update', adminSnapshot());
+    if (ack) ack({ ok: true });
+  });
+
+  socket.on('admin:set-numberlink-difficulty', (payload, ack) => {
+    const { difficulty } = payload || {};
+    const game = getGame('numberlink');
+    if (!game || typeof game.isDifficulty !== 'function' || !game.isDifficulty(difficulty)) {
+      if (ack) ack({ error: 'Некорректная сложность.' });
+      return;
+    }
+
+    numberlinkDifficulty = difficulty;
     io.to('admin').emit('admin:update', adminSnapshot());
     if (ack) ack({ ok: true });
   });
