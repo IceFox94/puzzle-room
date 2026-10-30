@@ -41,6 +41,9 @@
                       border:none; border-radius:8px; font-weight:bold;
                       cursor:pointer; }
   .game-card button:disabled { background:#585b70; color:#a6adc8; cursor:not-allowed; }
+  .game-card.disabled { opacity:0.45; filter:grayscale(0.7); cursor:not-allowed; }
+  .game-card.disabled .lock { font-size:28px; line-height:1; margin-bottom:8px; }
+  .game-card.disabled h3 { color:#6c7086; }
   .hint { font-size:12px; color:#a6adc8; margin-top:6px; }
 </style>
 </head>
@@ -56,9 +59,11 @@
 
 <div class="games-grid" id="gamesGrid">Загрузка...</div>
 
+<script src="/socket.io/socket.io.js"></script>
 <script>
 const grid = document.getElementById('gamesGrid');
 const nameInput = document.getElementById('playerName');
+const socket = io();
 
 // подхватываем имя из прошлой сессии
 nameInput.value = sessionStorage.getItem('pr_name') || '';
@@ -81,47 +86,69 @@ function randomRoom() {
   return s;
 }
 
-fetch('/api/games')
-  .then(r => r.json())
-  .then(games => {
-    grid.innerHTML = '';
-    if (!games.length) {
-      grid.textContent = 'Пока нет доступных игр.';
-      return;
-    }
-    const currentName = nameInput.value.trim();
-    for (const game of games) {
-      const card = document.createElement('div');
-      card.className = 'game-card';
+function renderGames(games) {
+  const currentName = nameInput.value.trim();
+  const roomValues = {};
+  document.querySelectorAll('.room-input').forEach(inp => {
+    if (inp.id.startsWith('room-')) roomValues[inp.id.slice(5)] = inp.value;
+  });
+
+  grid.innerHTML = '';
+  if (!games.length) {
+    grid.textContent = 'Пока нет доступных игр.';
+    return;
+  }
+
+  for (const game of games) {
+    const card = document.createElement('div');
+
+    if (!game.enabled) {
+      card.className = 'game-card disabled';
       card.innerHTML = `
-        <h3>${escapeHtml(game.title)}</h3>
-        <p class="desc">${escapeHtml(game.description || '')}</p>
-        <div class="actions">
-          <label for="room-${game.id}">комната</label>
-          <input class="room-input" id="room-${game.id}" maxlength="40" />
-          <button id="btn-${game.id}">Играть</button>
-        </div>
-        <div class="hint">По умолчанию у каждого своя комната. Чтобы играть вместе — введите одно и то же название.</div>
+        <div class="lock">🔒</div>
+        <h3>Игра недоступна</h3>
+        <p class="desc">Администратор временно отключил эту головоломку.</p>
       `;
       grid.appendChild(card);
-
-      const input = card.querySelector(`#room-${game.id}`);
-      const btn = card.querySelector(`#btn-${game.id}`);
-
-      // если имя введено — ставим его; иначе случайное значение
-      input.value = currentName || randomRoom();
-
-      function go() {
-        const name = nameInput.value.trim();
-        if (name) sessionStorage.setItem('pr_name', name);
-        const room = input.value.trim() || randomRoom();
-        location.href = `/play.html?game=${encodeURIComponent(game.id)}&room=${encodeURIComponent(room)}`;
-      }
-
-      btn.addEventListener('click', go);
-      input.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+      continue;
     }
-  })
+
+    card.className = 'game-card';
+    card.innerHTML = `
+      <h3>${escapeHtml(game.title)}</h3>
+      <p class="desc">${escapeHtml(game.description || '')}</p>
+      <div class="actions">
+        <label for="room-${game.id}">комната</label>
+        <input class="room-input" id="room-${game.id}" maxlength="40" />
+        <button id="btn-${game.id}">Играть</button>
+      </div>
+      <div class="hint">По умолчанию у каждого своя комната. Чтобы играть вместе — введите одно и то же название.</div>
+    `;
+    grid.appendChild(card);
+
+    const input = card.querySelector(`#room-${game.id}`);
+    const btn = card.querySelector(`#btn-${game.id}`);
+
+    // если имя введено — ставим его; иначе случайное значение
+    input.value = roomValues[game.id] || currentName || randomRoom();
+
+    function go() {
+      const name = nameInput.value.trim();
+      if (name) sessionStorage.setItem('pr_name', name);
+      const room = input.value.trim() || randomRoom();
+      location.href = `/play.html?game=${encodeURIComponent(game.id)}&room=${encodeURIComponent(room)}`;
+    }
+
+    btn.addEventListener('click', go);
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+  }
+}
+
+socket.on('games:update', renderGames);
+
+fetch('/api/games')
+  .then(r => r.json())
+  .then(renderGames)
   .catch(err => {
     grid.textContent = 'Не удалось загрузить список игр: ' + err.message;
   });

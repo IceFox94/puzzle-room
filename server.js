@@ -12,8 +12,27 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Игры, которые админ временно заблокировал для игроков.
+// По умолчанию все игры доступны.
+const disabledGames = new Set();
+
+function listPublicGames() {
+  return listGames().map(game => {
+    if (disabledGames.has(game.id)) {
+      // Заблокированная игра не должна раскрывать игрокам даже название.
+      return { id: game.id, title: '', description: '', enabled: false };
+    }
+    return {
+      id: game.id,
+      title: game.title,
+      description: game.description || '',
+      enabled: true,
+    };
+  });
+}
+
 app.get('/api/games', (req, res) => {
-  res.json(listGames());
+  res.json(listPublicGames());
 });
 
 // rooms: Map<`${gameId}:${roomId}`, Room>
@@ -64,7 +83,13 @@ function adminSnapshot() {
     if (!grouped[room.gameId]) grouped[room.gameId] = [];
     grouped[room.gameId].push(snap);
   }
-  return { games: listGames(), rooms: grouped };
+  return {
+    games: listGames().map(game => ({
+      ...game,
+      enabled: !disabledGames.has(game.id),
+    })),
+    rooms: grouped,
+  };
 }
 
 function broadcastRoom(room) {
@@ -74,11 +99,19 @@ function broadcastRoom(room) {
 }
 
 io.on('connection', (socket) => {
+  // Сразу сообщаем клиенту актуальный список доступных игр.
+  socket.emit('games:update', listPublicGames());
+
   socket.on('join', ({ gameId, roomId, name }) => {
     if (!gameId || !roomId) return;
     const game = getGame(gameId);
     if (!game) {
       socket.emit('error-msg', 'Неизвестная игра.');
+      return;
+    }
+
+    if (disabledGames.has(gameId)) {
+      socket.emit('join-denied', { gameId, reason: 'Игра временно недоступна.' });
       return;
     }
 
@@ -160,6 +193,25 @@ io.on('connection', (socket) => {
   socket.on('admin:subscribe', () => {
     socket.join('admin');
     socket.emit('admin:update', adminSnapshot());
+  });
+
+  socket.on('admin:set-game-enabled', (payload, ack) => {
+    const { gameId, enabled } = payload || {};
+    if (!getGame(gameId)) {
+      if (ack) ack({ error: 'Неизвестная игра.' });
+      return;
+    }
+    if (typeof enabled !== 'boolean') {
+      if (ack) ack({ error: 'Некорректное состояние игры.' });
+      return;
+    }
+
+    if (enabled) disabledGames.delete(gameId);
+    else disabledGames.add(gameId);
+
+    io.emit('games:update', listPublicGames());
+    io.to('admin').emit('admin:update', adminSnapshot());
+    if (ack) ack({ ok: true });
   });
 
   socket.on('admin:player', ({ gameId, roomId, playerId }, ack) => {

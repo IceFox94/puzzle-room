@@ -170,6 +170,11 @@ socket.on('state', (snap) => {
 
 socket.on('error-msg', (text) => showMsg(text, '#f38ba8'));
 
+socket.on('join-denied', () => {
+  // Игра заблокирована админом — возвращаем на главную.
+  location.replace('/');
+});
+
 socket.on('hint', (hint) => {
   if (renderer && renderer.showHint) renderer.showHint(hint);
   if (hint.message) showMsg(hint.message, '#f9e2af');

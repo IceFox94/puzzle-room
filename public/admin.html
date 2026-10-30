@@ -15,8 +15,15 @@
   .game-card { background:#313244; border-radius:12px; padding:20px;
                cursor:pointer; text-align:center; font-size:18px; font-weight:bold; }
   .game-card:hover { outline:1px solid #89b4fa; }
+  .game-card.disabled { opacity:0.6; }
   .game-card .count { display:block; font-size:13px; font-weight:normal;
                       color:#a6adc8; margin-top:6px; }
+  .game-toggle { display:flex; align-items:center; justify-content:center; gap:6px;
+                 margin-bottom:10px; font-size:12px; font-weight:normal;
+                 color:#a6adc8; cursor:pointer; }
+  .game-toggle input { width:16px; height:16px; accent-color:#a6e3a1;
+                       cursor:pointer; }
+  .game-card.disabled .game-toggle { color:#f9e2af; }
 
   .rooms-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(260px,1fr));
                 gap:16px; }
@@ -125,8 +132,31 @@ function renderGames() {
     const rooms = data.rooms[game.id] || [];
     const active = rooms.filter(r => r.players.length > 0).length;
     const card = document.createElement('div');
-    card.className = 'game-card';
-    card.innerHTML = `${game.title}<span class="count">Комнат: ${rooms.length} · Активных: ${active}</span>`;
+    card.className = 'game-card' + (game.enabled ? '' : ' disabled');
+    card.innerHTML = `
+      <label class="game-toggle" title="Снимите галочку, чтобы заблокировать игру для игроков">
+        <input type="checkbox"${game.enabled ? ' checked' : ''} />
+        <span>${game.enabled ? 'Доступна' : 'Заблокирована'}</span>
+      </label>
+      <div class="game-title">${escapeHtml(game.title)}</div>
+      <span class="count">Комнат: ${rooms.length} · Активных: ${active}</span>
+    `;
+
+    const toggle = card.querySelector('.game-toggle');
+    const checkbox = card.querySelector('input');
+    toggle.addEventListener('click', (event) => event.stopPropagation());
+    checkbox.addEventListener('change', () => {
+      socket.emit('admin:set-game-enabled', {
+        gameId: game.id,
+        enabled: checkbox.checked,
+      }, (res) => {
+        if (!res || res.error) {
+          checkbox.checked = !checkbox.checked;
+          alert(res && res.error || 'Не удалось изменить доступность игры.');
+        }
+      });
+    });
+
     card.addEventListener('click', () => {
       currentGame = game.id;
       currentRoom = null;
