@@ -12,6 +12,16 @@
   #help { max-width:520px; text-align:center; color:#6c7086;
           margin-bottom:12px; font-size:12px; font-style:italic; }
   #description:empty, #help:empty { display:none; }
+  /* Режим «без подсказок»: игрок видит только поле. */
+  body.no-help #title,
+  body.no-help #description,
+  body.no-help #help,
+  body.no-help #info,
+  body.no-help #msg,
+  body.no-help #reset,
+  body.no-help #winModal {
+    display:none !important;
+  }
   #info { margin-bottom:12px; font-size:14px; color:#a6adc8; }
   #board { display:flex; justify-content:center; align-items:flex-end;
            padding:20px; background:#313244; border-radius:12px; min-height:280px; }
@@ -120,6 +130,7 @@ script.onload = () => {
   document.getElementById('description').textContent = renderer.description || '';
   document.getElementById('help').textContent = renderer.help || '';
   document.title = renderer.title + ' · Puzzle Room';
+  applyNoHelp(document.body.classList.contains('no-help'));
   renderer.mount(document.getElementById('board'), (move) => {
     socket.emit('move', move);
   });
@@ -156,6 +167,7 @@ function doJoin(name) {
 
 socket.on('state', (snap) => {
   state = snap.state;
+  applyNoHelp(snap.noHelp);
   document.getElementById('moves').textContent = state.moves ?? 0;
   if (renderer) renderer.render(state);
 
@@ -176,6 +188,8 @@ socket.on('join-denied', () => {
 });
 
 socket.on('hint', (hint) => {
+  // В режиме «без подсказок» не показываем ни подсказки, ни сообщения.
+  if (document.body.classList.contains('no-help')) return;
   if (renderer && renderer.showHint) renderer.showHint(hint);
   if (hint.message) showMsg(hint.message, '#f9e2af');
 });
@@ -189,9 +203,25 @@ document.getElementById('reset').addEventListener('click', () => {
 });
 
 function showMsg(text, color = '#fab387') {
+  if (document.body.classList.contains('no-help')) return;
   const el = document.getElementById('msg');
   el.textContent = text;
   el.style.color = color;
+}
+
+function applyNoHelp(noHelp) {
+  const active = !!noHelp;
+  document.body.classList.toggle('no-help', active);
+  if (!renderer) return;
+
+  document.getElementById('title').textContent = active ? '' : renderer.title;
+  document.getElementById('description').textContent =
+    active ? '' : (renderer.description || '');
+  document.getElementById('help').textContent =
+    active ? '' : (renderer.help || '');
+  document.title = active
+    ? 'Puzzle Room'
+    : renderer.title + ' · Puzzle Room';
 }
 
 function plural(n, forms) {

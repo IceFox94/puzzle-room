@@ -114,9 +114,10 @@ function renderGames(games) {
     }
 
     card.className = 'game-card';
+    const desc = game.noHelp ? '' : (game.description || '');
     card.innerHTML = `
       <h3>${escapeHtml(game.title)}</h3>
-      <p class="desc">${escapeHtml(game.description || '')}</p>
+      ${desc ? `<p class="desc">${escapeHtml(desc)}</p>` : ''}
       <div class="actions">
         <label for="room-${game.id}">комната</label>
         <input class="room-input" id="room-${game.id}" maxlength="40" />

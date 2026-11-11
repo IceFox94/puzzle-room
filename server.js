@@ -19,11 +19,19 @@ const disabledGames = new Set();
 // Сложность Numberlink для новых комнат. Меняется только из админки.
 let numberlinkDifficulty = 'medium';
 
+// Режим «без подсказок»: скрывает описание и весь текст, отключает подсказки.
+// Меняется только из админки и действует на все комнаты Numberlink.
+let numberlinkNoHelp = false;
+
 function numberlinkDifficultyOptions() {
   const game = getGame('numberlink');
   return game && typeof game.difficultyOptions === 'function'
     ? game.difficultyOptions()
     : [];
+}
+
+function isNumberlinkNoHelp(room) {
+  return room.gameId === 'numberlink' && numberlinkNoHelp;
 }
 
 function listPublicGames() {
@@ -32,12 +40,18 @@ function listPublicGames() {
       // Заблокированная игра не должна раскрывать игрокам даже название.
       return { id: game.id, title: '', description: '', enabled: false };
     }
-    return {
+    const entry = {
       id: game.id,
       title: game.title,
       description: game.description || '',
       enabled: true,
     };
+    if (game.id === 'numberlink') {
+      entry.noHelp = numberlinkNoHelp;
+      // В режиме «без подсказок» игрок не должен видеть описание головоломки.
+      if (numberlinkNoHelp) entry.description = '';
+    }
+    return entry;
   });
 }
 
@@ -75,6 +89,7 @@ function roomSnapshot(room) {
     gameTitle: game.title,
     roomId: room.roomId,
     difficulty: room.difficulty || null,
+    noHelp: isNumberlinkNoHelp(room),
     state: game.publicState(room.state),
     solved,
     players: Array.from(room.players.values()).map(p => ({
@@ -105,6 +120,7 @@ function adminSnapshot() {
       if (game.id === 'numberlink') {
         entry.difficulty = numberlinkDifficulty;
         entry.difficulties = numberlinkDifficultyOptions();
+        entry.noHelp = numberlinkNoHelp;
       }
       return entry;
     }),
@@ -187,7 +203,7 @@ io.on('connection', (socket) => {
     }
 
     // индивидуальная подсказка — только этому игроку
-    if (game.getHint && player) {
+    if (game.getHint && player && !isNumberlinkNoHelp(room)) {
       const hint = game.getHint(room.state, player.moves);
       if (hint) socket.emit('hint', hint);
     }
@@ -245,6 +261,27 @@ io.on('connection', (socket) => {
     }
 
     numberlinkDifficulty = difficulty;
+    io.to('admin').emit('admin:update', adminSnapshot());
+    if (ack) ack({ ok: true });
+  });
+
+  socket.on('admin:set-numberlink-no-help', (payload, ack) => {
+    const { enabled } = payload || {};
+    if (typeof enabled !== 'boolean') {
+      if (ack) ack({ error: 'Некорректное состояние подсказок.' });
+      return;
+    }
+
+    numberlinkNoHelp = enabled;
+
+    // Обновляем главную страницу (описание игры) и все открытые комнаты,
+    // чтобы режим применялся без перезагрузки.
+    io.emit('games:update', listPublicGames());
+    for (const room of rooms.values()) {
+      if (room.gameId !== 'numberlink') continue;
+      io.to(`room:${room.gameId}:${room.roomId}`)
+        .emit('state', roomSnapshot(room));
+    }
     io.to('admin').emit('admin:update', adminSnapshot());
     if (ack) ack({ ok: true });
   });
